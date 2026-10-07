@@ -78,7 +78,7 @@ RESET low 20 ms → high, wait 150 ms
 
 | Folder | What it does | Hardware status |
 |---|---|---|
-| [`firmware/esp32c3-gif-player`](firmware/esp32c3-gif-player) | Wi-Fi GIF / image player. The browser crops or fits the image to 128 × 160 (with optional rotation and dithering) and converts it to RGB565. The C3 stores up to about 33 frames in LittleFS and plays them through the 9-bit SPI driver. | ⚠ builds and boots; playback through the hardware-SPI driver not yet confirmed on screen |
+| [`firmware/esp32c3-gif-player`](firmware/esp32c3-gif-player) | Wi-Fi GIF / image player. The browser crops or fits the image to 128 × 160 (with optional rotation and dithering) and converts it to RGB565. The C3 stores up to about 33 frames in LittleFS and plays them through the 9-bit SPI driver. | ✅ verified: GIF playback shown in the [demo video](../../media/demo.mp4) |
 
 To use the GIF player:
 1. Join Wi-Fi `KT105-Display`, password `kt105disp`.

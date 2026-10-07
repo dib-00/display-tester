@@ -97,7 +97,7 @@ RESET high 5 ms → low 20 ms → high, wait 150 ms
 
 | Folder | What it does | Hardware status |
 |---|---|---|
-| [`firmware/esp32c3-gif-player`](firmware/esp32c3-gif-player) | Wi-Fi GIF / image player. The driver, [`src/lcd4.cpp`](firmware/esp32c3-gif-player/src/lcd4.cpp), is 4-wire hardware SPI with DMA and the init above. The browser converts files to 128 × 160 RGB565, and the C3 stores about 33 frames. | ⚠ builds and boots; playback through hardware SPI not yet confirmed on screen |
+| [`firmware/esp32c3-gif-player`](firmware/esp32c3-gif-player) | Wi-Fi GIF / image player. The driver, [`src/lcd4.cpp`](firmware/esp32c3-gif-player/src/lcd4.cpp), is 4-wire hardware SPI with DMA and the init above. The browser converts files to 128 × 160 RGB565, and the C3 stores about 33 frames. | ✅ verified: GIF playback shown in the [demo video](../../media/demo.mp4) |
 
 To use the GIF player:
 1. Join Wi-Fi `N105-2023-Display`, password `n105display`.

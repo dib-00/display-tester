@@ -100,7 +100,7 @@ Use 3.3 V logic. A 5 V board (Arduino Mega) needs 74LVC245 level shifters.
 | Folder | What it does | Hardware status |
 |---|---|---|
 | [`firmware/esp32-st7789-test`](firmware/esp32-st7789-test) | Display test. Reads the controller ID and searches strap levels for pins 9–12. Cycles colours, colour bars, an alignment grid, text and a speed test. Serial commands (`n`, `p`, `i`, `r`, `d`, `m`, `o`, `s`) control it. | ✅ verified |
-| [`firmware/esp32-gif-player`](firmware/esp32-gif-player) | Wi-Fi GIF / image player. The browser resizes the file to 240 × 320 and converts it to RGB565; the ESP32 stores it in a 2.4 MB LittleFS and streams frames to the panel in 16-row strips. About 15 frames fit. | ⚠ builds and boots; Wi-Fi upload not yet confirmed on hardware |
+| [`firmware/esp32-gif-player`](firmware/esp32-gif-player) | Wi-Fi GIF / image player. The browser resizes the file to 240 × 320 and converts it to RGB565; the ESP32 stores it in a 2.4 MB LittleFS and streams frames to the panel in 16-row strips. About 15 frames fit. | ✅ verified: GIF playback shown in the [demo video](../../media/demo.mp4) |
 
 To use the GIF player:
 1. Join Wi-Fi `KT28-Display`, password `kt28display`.
