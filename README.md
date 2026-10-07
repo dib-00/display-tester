@@ -4,6 +4,12 @@ Cheap replacement LCDs for feature phones (Nokia 105, "universal" 20-pin and 37-
 
 **Author:** Dibyendu Mondal · [github.com/dib-00](https://github.com/dib-00)
 
+## Demo
+
+<a href="media/demo.mp4"><img src="media/demo-preview.gif" width="240" alt="GIFs and images playing on several of the tested displays"></a>
+
+GIF and image playback on several of the tested displays, using the Wi-Fi GIF player firmware. The preview above runs at 3× speed without sound. **[▶ Watch the full video with audio (46 s)](media/demo.mp4)**.
+
 ## Displays
 
 | Display | Size / resolution | Interface | Controller | Verified on | Folder |
