@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="author" content="Dibyendu Mondal">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KT-28 GIF Player</title>
+<style>
+  :root {
+    --bg: #0b1020; --card: #131a2e; --line: #26304d; --text: #e6eaf5; --muted: #8a94b3;
+    --accent: #38bdf8; --ok: #22c55e; --err: #ef4444; --warn: #f59e0b;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .app { max-width: 980px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  h1 { margin: 0; font-size: 22px; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+  .pill { display: inline-flex; gap: 8px; align-items: center; background: var(--card); border: 1px solid var(--line);
+          border-radius: 99px; padding: 6px 12px; font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 760px) { .grid { grid-template-columns: 1.2fr 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .card h2 { margin: 0 0 10px; font-size: 15px; }
+  .drop { display: block; border: 2px dashed var(--line); border-radius: 12px; padding: 26px 12px; text-align: center; cursor: pointer; transition: .15s; }
+  .drop:hover, .drop.over { border-color: var(--accent); background: rgba(56,189,248,.06); }
+  .drop strong { color: var(--accent); }
+  .muted { color: var(--muted); font-size: 12px; }
+  .opts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+  label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  select, input[type=number], input[type=color] { background: #0a0f1d; color: var(--text); border: 1px solid var(--line);
+          border-radius: 8px; padding: 7px 8px; font: inherit; width: 100%; }
+  input[type=color] { padding: 2px; height: 34px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 10px; }
+  .preview-wrap { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  canvas.preview { width: 240px; height: 320px; image-rendering: pixelated; background: #000; border-radius: 8px; border: 1px solid var(--line); }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .stat { background: #0a0f1d; border-radius: 8px; padding: 8px; }
+  .stat b { display: block; font-size: 13px; font-family: ui-monospace, Consolas, monospace; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  button { font: inherit; border-radius: 9px; padding: 9px 14px; border: 1px solid var(--line); background: #1b2440; color: var(--text); cursor: pointer; }
+  button.primary { background: #0284c7; border-color: #0284c7; font-weight: 600; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .bar { height: 8px; background: #0a0f1d; border-radius: 99px; overflow: hidden; margin-top: 14px; }
+  .fill { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+  .log { margin-top: 12px; max-height: 160px; overflow: auto; background: #0a0f1d; border-radius: 8px; padding: 8px;
+         font: 11px/1.5 ui-monospace, Consolas, monospace; list-style: none; }
+  .log li.ok { color: var(--ok); } .log li.err { color: var(--err); } .log li.warn { color: var(--warn); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <div class="sub">ESP32 · ST7789V · 240×320</div>
+      <h1>KT-28 <span>GIF Player</span></h1>
+    </div>
+    <div class="pill"><span id="dot" class="dot"></span><span id="statusText">Connecting…</span></div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <h2>1 · Choose an image or GIF</h2>
+      <label id="drop" class="drop" for="file">
+        <div><strong>Click to choose</strong> or drop a file here</div>
+        <div class="muted">GIF (animated), PNG, JPG, WebP, BMP · up to 25 MB</div>
+        <div id="fileMeta" class="muted" style="margin-top:6px"></div>
+        <input id="file" type="file" accept=".gif,.png,.jpg,.jpeg,.webp,.bmp,image/*" class="hidden">
+      </label>
+
+      <div class="opts">
+        <label class="f">Fit
+          <select id="fit">
+            <option value="cover">Fill screen (crop edges)</option>
+            <option value="contain">Show whole image (bars)</option>
+            <option value="stretch">Stretch</option>
+          </select>
+        </label>
+        <label class="f">Rotate
+          <select id="rotate">
+            <option value="auto">Auto (turn landscape images)</option>
+            <option value="0">0°</option>
+            <option value="90">90°</option>
+            <option value="180">180°</option>
+            <option value="270">270°</option>
+          </select>
+        </label>
+        <label class="f">Background (for bars)
+          <input id="bg" type="color" value="#000000">
+        </label>
+        <label class="f">Max frames <span id="capHint"></span>
+          <input id="maxFrames" type="number" min="1" max="999" value="15">
+        </label>
+      </div>
+      <label class="check"><input id="dither" type="checkbox"> Dithering (smoother photos; can flicker in GIFs)</label>
+    </section>
+
+    <section class="card">
+      <h2>2 · Preview &amp; send</h2>
+      <div class="preview-wrap">
+        <canvas id="preview" class="preview" width="240" height="320"></canvas>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="muted">Frames</span><b id="stFrames">—</b></div>
+        <div class="stat"><span class="muted">Length</span><b id="stLength">—</b></div>
+        <div class="stat"><span class="muted">Upload size</span><b id="stSize">—</b></div>
+        <div class="stat"><span class="muted">Source</span><b id="stSource">—</b></div>
+      </div>
+      <div class="btns">
+        <button id="send" class="primary" disabled>Send to display</button>
+        <button id="clear">Clear display</button>
+      </div>
+      <div class="bar"><div id="progress" class="fill"></div></div>
+      <div id="progressText" class="muted" style="margin-top:6px">&nbsp;</div>
+      <ul id="log" class="log"></ul>
+    </section>
+  </div>
+</div>
+
+<!-- hidden work canvases -->
+<canvas id="work" width="240" height="320" class="hidden"></canvas>
+
+<script>
+(() => {
+  'use strict';
+  const FW = 240, FH = 320, FRAME = FW * FH * 2, REC = FRAME + 2, HDR = 16;
+  const MAX_FILE = 25 * 1024 * 1024, SOURCE_MAX_SIDE = 800;
+  const $ = (id) => document.getElementById(id);
+
+  // ---------------------------------------------------------------- log & ui
+  function log(msg, cls = '') {
+    const li = document.createElement('li');
+    li.className = cls;
+    li.textContent = new Date().toLocaleTimeString([], { hour12: false }) + '  ' + msg;
+    $('log').appendChild(li);
+    $('log').scrollTop = $('log').scrollHeight;
+  }
+  function setProgress(p, text) {
+    $('progress').style.width = Math.max(0, Math.min(100, p)).toFixed(1) + '%';
+    if (text !== undefined) $('progressText').textContent = text || ' ';
+  }
+  const kb = (n) => (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB';
+
+  // ---------------------------------------------------------------- device status
+  let capacityFrames = null;
+  async function refreshStatus() {
+    try {
+      const r = await fetch('/api/status', { cache: 'no-store' });
+      const s = await r.json();
+      $('dot').style.background = 'var(--ok)';
+      $('statusText').textContent = `${s.mode === 'ap' ? 'AP ' + s.ssid : s.ssid} · ${s.ip} · ` +
+        (s.frames ? `playing ${s.frames} frame${s.frames > 1 ? 's' : ''}` : 'idle');
+      const firstTime = capacityFrames === null;
+      capacityFrames = s.capacityFrames;
+      $('capHint').textContent = `(device fits ${capacityFrames})`;
+      $('maxFrames').max = String(capacityFrames);
+      if (firstTime || +$('maxFrames').value > capacityFrames) $('maxFrames').value = String(Math.min(capacityFrames, 15) || 1);
+    } catch (_) {
+      $('dot').style.background = 'var(--err)';
+      $('statusText').textContent = 'Device not reachable';
+    }
+  }
+  refreshStatus();
+  setInterval(refreshStatus, 6000);
+
+  // ---------------------------------------------------------------- GIF decoder
+  function parseGif(buf) {
+    const b = new Uint8Array(buf);
+    const sig = String.fromCharCode(...b.subarray(0, 6));
+    if (!/^GIF8[79]a$/.test(sig)) throw new Error('Not a GIF file');
+    let p = 6;
+    const width = b[p] | (b[p + 1] << 8), height = b[p + 2] | (b[p + 3] << 8);
+    const flags = b[p + 4];
+    p += 7;
+    let gct = null;
+    if (flags & 0x80) { const n = 2 << (flags & 7); gct = b.subarray(p, p + 3 * n); p += 3 * n; }
+    const frames = [];
+    let gce = { delay: 0, trans: -1, disposal: 0 };
+    const skipSubBlocks = () => { while (p < b.length && b[p] !== 0) p += b[p] + 1; p++; };
+    while (p < b.length) {
+      const id = b[p++];
+      if (id === 0x3B) break;                    // trailer
+      if (id === 0x21) {                         // extension
+        const label = b[p++];
+        if (label === 0xF9 && b[p] >= 4) {       // graphic control
+          const pf = b[p + 1];
+          gce = { disposal: (pf >> 2) & 7, delay: (b[p + 2] | (b[p + 3] << 8)) * 10, trans: (pf & 1) ? b[p + 4] : -1 };
+        }
+        skipSubBlocks();
+      } else if (id === 0x2C) {                  // image descriptor
+        const x = b[p] | (b[p + 1] << 8), y = b[p + 2] | (b[p + 3] << 8);
+        const w = b[p + 4] | (b[p + 5] << 8), h = b[p + 6] | (b[p + 7] << 8), f = b[p + 8];
+        p += 9;
+        let lct = null;
+        if (f & 0x80) { const n = 2 << (f & 7); lct = b.subarray(p, p + 3 * n); p += 3 * n; }
+        const minCode = b[p++];
+        let total = 0;
+        for (let q = p; q < b.length && b[q] !== 0; q += b[q] + 1) total += b[q];
+        const data = new Uint8Array(total);
+        let o = 0;
+        while (p < b.length && b[p] !== 0) { const s = b[p]; data.set(b.subarray(p + 1, p + 1 + s), o); o += s; p += s + 1; }
+        p++;
+        frames.push({ x, y, w, h, interlaced: !!(f & 0x40), palette: lct || gct, minCode, data, ...gce });
+        gce = { delay: 0, trans: -1, disposal: 0 };
+      } else {
+        break;                                   // unknown block: stop, keep what we have
+      }
+    }
+    if (!frames.length) throw new Error('GIF contains no frames');
+    return { width, height, frames };
+  }
+
+  function lzw(minCode, data, count) {
+    const out = new Uint8Array(count);
+    const clear = 1 << minCode, eoi = clear + 1;
+    const prefix = new Int16Array(4096), suffix = new Uint8Array(4096), stack = new Uint8Array(4097);
+    for (let i = 0; i < clear; i++) { prefix[i] = -1; suffix[i] = i; }
+    let size = minCode + 1, next = eoi + 1, old = -1, first = 0;
+    let datum = 0, bits = 0, pos = 0, op = 0;
+    while (op < count) {
+      while (bits < size) { if (pos >= data.length) return out; datum |= data[pos++] << bits; bits += 8; }
+      let code = datum & ((1 << size) - 1);
+      datum >>>= size; bits -= size;
+      if (code === clear) { size = minCode + 1; next = eoi + 1; old = -1; continue; }
+      if (code === eoi) break;
+      if (old === -1) { out[op++] = suffix[code]; old = first = code; continue; }
+      const inCode = code;
+      let sp = 0;
+      if (code >= next) { stack[sp++] = first; code = old; }
+      while (code >= clear) { stack[sp++] = suffix[code]; code = prefix[code]; }
+      first = suffix[code];
+      stack[sp++] = first;
+      if (next < 4096) {
+        prefix[next] = old; suffix[next] = first; next++;
+        if (next === (1 << size) && size < 12) size++;
+      }
+      old = inCode;
+      while (sp > 0 && op < count) out[op++] = stack[--sp];
+    }
+    return out;
+  }
+
+  function interlaceRows(h) {
+    const rows = [];
+    for (const [start, step] of [[0, 8], [4, 8], [2, 4], [1, 2]]) for (let y = start; y < h; y += step) rows.push(y);
+    return rows;
+  }
+
+  // Pick at most `max` frames, merging the delays of skipped frames.
+  function pickFrames(delays, max) {
+    const n = delays.length;
+    if (n <= max) return delays.map((d, i) => ({ index: i, delay: d }));
+    const out = [];
+    for (let j = 0; j < max; j++) {
+      const a = Math.floor(j * n / max), b = Math.floor((j + 1) * n / max);
+      let d = 0;
+      for (let k = a; k < b; k++) d += delays[k];
+      out.push({ index: a, delay: d });
+    }
+    return out;
+  }
+
+  async function decodeGif(buf, maxFrames, onProgress) {
+    const g = parseGif(buf);
+    const W = g.width, H = g.height;
+    const delays = g.frames.map((f) => (f.delay >= 20 ? f.delay : 100));  // browser convention
+    const keep = new Map(pickFrames(delays, maxFrames).map((k) => [k.index, k.delay]));
+    const comp = new ImageData(W, H);
+    const px4 = comp.data;
+    const full = document.createElement('canvas');
+    full.width = W; full.height = H;
+    const fctx = full.getContext('2d');
+    const scale = Math.min(1, SOURCE_MAX_SIDE / Math.max(W, H));
+    const frames = [];
+
+    for (let i = 0; i < g.frames.length; i++) {
+      const f = g.frames[i];
+      if (!f.palette) throw new Error('GIF frame without a colour table');
+      const saved = f.disposal === 3 ? new Uint8ClampedArray(px4) : null;
+      const idx = lzw(f.minCode, f.data, f.w * f.h);
+      const rows = f.interlaced ? interlaceRows(f.h) : null;
+      for (let r = 0; r < f.h; r++) {
+        const dy = f.y + (rows ? rows[r] : r);
+        if (dy >= H) continue;
+        for (let c = 0; c < f.w; c++) {
+          const dx = f.x + c;
+          if (dx >= W) continue;
+          const ci = idx[r * f.w + c];
+          if (ci === f.trans) continue;
+          const o = (dy * W + dx) * 4, q = ci * 3;
+          px4[o] = f.palette[q]; px4[o + 1] = f.palette[q + 1]; px4[o + 2] = f.palette[q + 2]; px4[o + 3] = 255;
+        }
+      }
+      if (keep.has(i)) {
+        fctx.putImageData(comp, 0, 0);
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(W * scale));
+        c.height = Math.max(1, Math.round(H * scale));
+        const cctx = c.getContext('2d');
+        cctx.imageSmoothingQuality = 'high';
+        cctx.drawImage(full, 0, 0, c.width, c.height);
+        frames.push({ src: c, w: c.width, h: c.height, delay: keep.get(i) });
+      }
+      if (f.disposal === 2) {
+        for (let r = 0; r < f.h; r++) {
+          const dy = f.y + r;
+          if (dy >= H) continue;
+          for (let c = 0; c < f.w; c++) {
+            const dx = f.x + c;
+            if (dx < W) px4[(dy * W + dx) * 4 + 3] = 0;
+          }
+        }
+      } else if (saved) {
+        px4.set(saved);
+      }
+      if (onProgress && (i % 4 === 0)) { onProgress(i + 1, g.frames.length); await new Promise((r) => setTimeout(r)); }
+    }
+    return { frames, width: W, height: H, total: g.frames.length };
+  }
+
+  async function decodeStill(file) {
+    let bmp;
+    try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+    catch (_) {
+      bmp = await new Promise((res, rej) => {
+        const url = URL.createObjectURL(file), img = new Image();
+        img.onload = () => { URL.revokeObjectURL(url); res(img); };
+        img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Browser cannot decode this image')); };
+        img.src = url;
+      });
+    }
+    const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
+    if (!w || !h) throw new Error('Image has no size');
+    return { frames: [{ src: bmp, w, h, delay: 0 }], width: w, height: h, total: 1 };
+  }
+
+  // ---------------------------------------------------------------- resize + RGB565
+  const work = $('work'), wctx = work.getContext('2d', { willReadFrequently: true });
+  const stage = document.createElement('canvas'), sctx = stage.getContext('2d');
+
+  function halve(src, sx, sy, sw, sh, dw, dh) {
+    while (sw / 2 >= dw && sh / 2 >= dh) {
+      const nw = Math.max(1, Math.round(sw / 2)), nh = Math.max(1, Math.round(sh / 2));
+      const c = document.createElement('canvas');
+      c.width = nw; c.height = nh;
+      const x = c.getContext('2d');
+      x.imageSmoothingQuality = 'high';
+      x.drawImage(src, sx, sy, sw, sh, 0, 0, nw, nh);
+      src = c; sx = 0; sy = 0; sw = nw; sh = nh;
+    }
+    return { src, sx, sy, sw, sh };
+  }
+
+  function renderFrame(fr, opt) {
+    let rot = opt.rotate === 'auto' ? (fr.w > fr.h ? 90 : 0) : +opt.rotate;
+    const bw = rot % 180 ? FH : FW, bh = rot % 180 ? FW : FH;
+    stage.width = bw; stage.height = bh;
+    sctx.fillStyle = opt.bg; sctx.fillRect(0, 0, bw, bh);
+    let sx = 0, sy = 0, sw = fr.w, sh = fr.h, dx = 0, dy = 0, dw = bw, dh = bh;
+    if (opt.fit === 'cover') {
+      const s = Math.max(bw / fr.w, bh / fr.h);
+      sw = bw / s; sh = bh / s; sx = (fr.w - sw) / 2; sy = (fr.h - sh) / 2;
+    } else if (opt.fit === 'contain') {
+      const s = Math.min(bw / fr.w, bh / fr.h);
+      dw = Math.max(1, Math.round(fr.w * s)); dh = Math.max(1, Math.round(fr.h * s));
+      dx = Math.floor((bw - dw) / 2); dy = Math.floor((bh - dh) / 2);
+    }
+    const h = halve(fr.src, sx, sy, sw, sh, dw, dh);
+    sctx.imageSmoothingEnabled = true; sctx.imageSmoothingQuality = 'high';
+    sctx.drawImage(h.src, h.sx, h.sy, h.sw, h.sh, dx, dy, dw, dh);
+
+    wctx.setTransform(1, 0, 0, 1, 0, 0);
+    wctx.fillStyle = opt.bg; wctx.fillRect(0, 0, FW, FH);
+    wctx.imageSmoothingEnabled = false;
+    wctx.translate(FW / 2, FH / 2);
+    wctx.rotate(rot * Math.PI / 180);
+    wctx.drawImage(stage, -bw / 2, -bh / 2);
+    wctx.setTransform(1, 0, 0, 1, 0, 0);
+    return wctx.getImageData(0, 0, FW, FH);
+  }
+
+  function to565(img, dither, out, offset) {
+    const s = img.data;
+    const preview = new Uint8ClampedArray(FW * FH * 4);
+    const e = dither ? Float32Array.from(s) : null;
+    const clamp = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
+    const spread = (x, y, er, eg, eb, k) => {
+      if (x < 0 || x >= FW || y >= FH) return;
+      const j = (y * FW + x) * 4;
+      e[j] += er * k; e[j + 1] += eg * k; e[j + 2] += eb * k;
+    };
+    for (let y = 0; y < FH; y++) {
+      for (let x = 0; x < FW; x++) {
+        const p = y * FW + x, i = p * 4;
+        const r = dither ? clamp(e[i]) : s[i], g = dither ? clamp(e[i + 1]) : s[i + 1], b = dither ? clamp(e[i + 2]) : s[i + 2];
+        const r5 = Math.round(r * 31 / 255), g6 = Math.round(g * 63 / 255), b5 = Math.round(b * 31 / 255);
+        const v = (r5 << 11) | (g6 << 5) | b5;
+        out[offset + p * 2] = v >>> 8;
+        out[offset + p * 2 + 1] = v & 0xFF;
+        const rq = Math.round(r5 * 255 / 31), gq = Math.round(g6 * 255 / 63), bq = Math.round(b5 * 255 / 31);
+        preview[i] = rq; preview[i + 1] = gq; preview[i + 2] = bq; preview[i + 3] = 255;
+        if (dither) {
+          const er = r - rq, eg = g - gq, eb = b - bq;
+          spread(x + 1, y, er, eg, eb, 7 / 16); spread(x - 1, y + 1, er, eg, eb, 3 / 16);
+          spread(x, y + 1, er, eg, eb, 5 / 16); spread(x + 1, y + 1, er, eg, eb, 1 / 16);
+        }
+      }
+    }
+    return new ImageData(preview, FW, FH);
+  }
+
+  // ---------------------------------------------------------------- pipeline
+  let decoded = null, payload = null, previews = [], delays = [], previewTimer = null, busy = false;
+
+  function options() {
+    return { fit: $('fit').value, rotate: $('rotate').value, bg: $('bg').value, dither: $('dither').checked };
+  }
+
+  function encode() {
+    if (!decoded) return;
+    const opt = options();
+    const n = decoded.frames.length;
+    const buf = new Uint8Array(HDR + n * REC);
+    const dv = new DataView(buf.buffer);
+    buf.set([0x4B, 0x54, 0x41, 0x31], 0);            // "KTA1"
+    dv.setUint16(4, FW, true); dv.setUint16(6, FH, true); dv.setUint16(8, n, true);
+    previews = []; delays = [];
+    decoded.frames.forEach((fr, k) => {
+      const off = HDR + k * REC;
+      const d = Math.min(65535, Math.round(fr.delay));
+      dv.setUint16(off, d, true);
+      previews.push(to565(renderFrame(fr, opt), opt.dither, buf, off + 2));
+      delays.push(d);
+    });
+    payload = buf;
+    const totalMs = delays.reduce((a, b) => a + b, 0);
+    $('stFrames').textContent = n > 1 ? `${n} (of ${decoded.total})` : 'still image';
+    $('stLength').textContent = n > 1 ? (totalMs / 1000).toFixed(2) + ' s loop' : '—';
+    $('stSize').textContent = kb(buf.length);
+    $('stSource').textContent = `${decoded.width}×${decoded.height}`;
+    $('send').disabled = busy || (capacityFrames !== null && n > capacityFrames);
+    if (capacityFrames !== null && n > capacityFrames) log(`Too many frames for the device (${capacityFrames} max)`, 'err');
+    playPreview();
+  }
+
+  function playPreview() {
+    clearTimeout(previewTimer);
+    const ctx = $('preview').getContext('2d');
+    let i = 0;
+    const step = () => {
+      if (!previews.length) return;
+      ctx.putImageData(previews[i], 0, 0);
+      if (previews.length > 1) {
+        previewTimer = setTimeout(step, Math.max(20, delays[i]));
+        i = (i + 1) % previews.length;
+      }
+    };
+    step();
+  }
+
+  let lastFile = null;
+  async function loadFile(file) {
+    if (busy) return;
+    if (!file) return;
+    lastFile = file;
+    if (file.size > MAX_FILE) { log(`File is ${kb(file.size)}; limit is 25 MB`, 'err'); return; }
+    const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    const isGif = head[0] === 0x47 && head[1] === 0x49 && head[2] === 0x46;
+    const isImage = isGif || (head[0] === 0x89 && head[1] === 0x50) || (head[0] === 0xFF && head[1] === 0xD8) ||
+      (head[0] === 0x42 && head[1] === 0x4D) || (head[8] === 0x57 && head[9] === 0x45 && head[10] === 0x42 && head[11] === 0x50);
+    if (!isImage) { log('Unsupported file: use GIF, PNG, JPG, WebP or BMP', 'err'); return; }
+
+    $('fileMeta').textContent = `${file.name} · ${kb(file.size)}`;
+    $('send').disabled = true;
+    const maxFrames = Math.max(1, Math.min(+$('maxFrames').value || 1, capacityFrames ?? 999));
+    try {
+      setProgress(0, 'Decoding…');
+      if (isGif) {
+        decoded = await decodeGif(await file.arrayBuffer(), maxFrames,
+          (i, n) => setProgress(100 * i / n, `Decoding frame ${i} / ${n}`));
+        $('dither').checked = false;
+        if (decoded.frames.length === 1) decoded.frames[0].delay = 0;
+      } else {
+        decoded = await decodeStill(file);
+        $('dither').checked = true;
+      }
+      setProgress(0, '');
+      encode();
+      log(`Loaded ${file.name}: ${decoded.total} frame(s), using ${decoded.frames.length}`, 'ok');
+    } catch (err) {
+      decoded = null; payload = null;
+      setProgress(0, '');
+      log(`Could not read ${file.name}: ${err.message}`, 'err');
+    }
+  }
+
+  function upload() {
+    if (!payload || busy) return;
+    busy = true;
+    $('send').disabled = true;
+    const t0 = performance.now();
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload');
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.timeout = 180000;
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      const s = Math.max((performance.now() - t0) / 1000, 0.001);
+      setProgress(100 * e.loaded / e.total, `Uploading ${kb(e.loaded)} / ${kb(e.total)} · ${(e.loaded / 1024 / s).toFixed(0)} KB/s`);
+    };
+    const done = (ok, msg) => {
+      busy = false;
+      $('send').disabled = !payload;
+      setProgress(ok ? 100 : 0, msg);
+      log(msg, ok ? 'ok' : 'err');
+      refreshStatus();
+    };
+    xhr.onload = () => {
+      let body = {};
+      try { body = JSON.parse(xhr.responseText); } catch (_) {}
+      if (xhr.status === 200 && body.ok) done(true, `Saved ${body.frames} frame(s) — now playing on the display`);
+      else done(false, 'Upload failed: ' + (body.error || 'HTTP ' + xhr.status));
+    };
+    xhr.onerror = () => done(false, 'Upload failed: network error');
+    xhr.ontimeout = () => done(false, 'Upload failed: timed out');
+    xhr.send(payload);
+  }
+
+  // ---------------------------------------------------------------- wiring
+  const drop = $('drop');
+  $('file').addEventListener('change', (e) => loadFile(e.target.files[0]));
+  ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) loadFile(f); });
+  ['fit', 'rotate', 'bg', 'dither'].forEach((id) => $(id).addEventListener('change', encode));
+  $('maxFrames').addEventListener('change', () => { if (lastFile) loadFile(lastFile); });
+  $('send').addEventListener('click', upload);
+  $('clear').addEventListener('click', async () => {
+    try {
+      const r = await fetch('/api/clear', { method: 'POST' });
+      const b = await r.json();
+      log(b.ok ? 'Display cleared' : 'Clear failed: ' + b.error, b.ok ? 'ok' : 'err');
+      refreshStatus();
+    } catch (_) { log('Clear failed: device not reachable', 'err'); }
+  });
+  log('Ready. Choose an image or GIF.');
+})();
+</script>
+</body>
+</html>
